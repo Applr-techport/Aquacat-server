@@ -9,6 +9,28 @@ export class UserService {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
+  private calculateGoalMl(weight: number, activityLevel: string, ageGroup: string): number {
+    // Base multiplier by age group (ml per kg)
+    const ageMultiplier: Record<string, number> = {
+      '20s': 37, // 35~40
+      '30s': 33, // 30~35
+      '40s': 30, // 28~32
+      '50+': 27, // 25~30
+    };
+    const base = ageMultiplier[ageGroup] || 33;
+
+    // Activity adjustment
+    const activityAdjust: Record<string, number> = {
+      'low': -3,
+      'normal': 0,
+      'high': +5,
+    };
+    const adjust = activityAdjust[activityLevel] || 0;
+
+    const multiplier = base + adjust;
+    return Math.round((weight * multiplier) / 100) * 100;
+  }
+
   async updateProfile(userId: string, data: {
     displayName?: string;
     gender?: string;
@@ -16,17 +38,17 @@ export class UserService {
     wakeTime?: string;
     sleepTime?: string;
     activityLevel?: string;
+    ageGroup?: string;
     mealTimes?: string;
   }) {
-    // Recalculate goalMl if weight or activityLevel changed
     let goalMl: number | undefined;
-    if (data.weight || data.activityLevel) {
+    if (data.weight || data.activityLevel || data.ageGroup) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) return null;
       const weight = data.weight || user.weight;
       const activity = data.activityLevel || user.activityLevel;
-      const multiplier = activity === 'low' ? 30 : activity === 'high' ? 40 : 33;
-      goalMl = Math.round((weight * multiplier) / 100) * 100;
+      const age = data.ageGroup || user.ageGroup;
+      goalMl = this.calculateGoalMl(weight, activity, age);
     }
 
     return this.prisma.user.update({
@@ -41,19 +63,19 @@ export class UserService {
   async completeOnboarding(userId: string, data: {
     displayName: string;
     gender?: string;
-    birthYear?: number;
     weight: number;
     wakeTime: string;
     sleepTime: string;
     activityLevel: string;
+    ageGroup?: string;
     mealTimes?: string;
   }) {
-    const multiplier = data.activityLevel === 'low' ? 30 : data.activityLevel === 'high' ? 40 : 33;
-    const goalMl = Math.round((data.weight * multiplier) / 100) * 100;
+    const ageGroup = data.ageGroup || '30s';
+    const goalMl = this.calculateGoalMl(data.weight, data.activityLevel, ageGroup);
 
     return this.prisma.user.update({
       where: { id: userId },
-      data: { ...data, goalMl },
+      data: { ...data, ageGroup, goalMl },
     });
   }
 }

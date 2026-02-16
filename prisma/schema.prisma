@@ -18,6 +18,7 @@ model User {
   wakeTime      String    @default("08:00")  // HH:mm
   sleepTime     String    @default("24:00")
   activityLevel String    @default("normal") // "low" | "normal" | "high"
+  ageGroup      String    @default("30s") // "20s" | "30s" | "40s" | "50+"
   goalMl        Int       @default(2000)
   isPremium     Boolean   @default(false)
   mealTimes     String    @default("08:30,13:00,19:30") // CSV

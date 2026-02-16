@@ -47,11 +47,27 @@ export class AuthService {
   }
 
   async appleLogin(identityToken: string, email?: string, fullName?: string) {
-    // Apple token verification - simplified for MVP
-    // In production, verify with Apple's public keys
-    let user = email
-      ? await this.prisma.user.findUnique({ where: { email } })
-      : null;
+    // Basic JWT structure validation (MVP)
+    // TODO: Full verification with Apple's public keys for production
+    if (!identityToken || identityToken.split('.').length !== 3) {
+      throw new UnauthorizedException('Invalid Apple identity token');
+    }
+
+    // Decode payload to extract email if not provided
+    try {
+      const payload = JSON.parse(Buffer.from(identityToken.split('.')[1], 'base64').toString());
+      if (!email && payload.email) {
+        email = payload.email;
+      }
+    } catch {
+      throw new UnauthorizedException('Failed to decode Apple token');
+    }
+
+    if (!email) {
+      throw new UnauthorizedException('Email is required for Apple login');
+    }
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
 
     const isNewUser = !user;
 
