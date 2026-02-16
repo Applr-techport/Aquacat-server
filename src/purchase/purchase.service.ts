@@ -35,6 +35,13 @@ export class PurchaseService {
     return purchase;
   }
 
+  async getUserPurchases(userId: string) {
+    return this.prisma.purchase.findMany({
+      where: { userId },
+      orderBy: { purchasedAt: 'desc' },
+    });
+  }
+
   // Admin: revenue stats
   async getRevenueStats() {
     const now = new Date();

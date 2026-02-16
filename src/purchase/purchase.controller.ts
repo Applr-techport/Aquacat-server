@@ -18,7 +18,13 @@ export class PurchaseController {
     return this.purchaseService.recordPurchase(req.user.id, body);
   }
 
-  // Admin endpoint (no auth for now — admin uses separate auth)
+  @UseGuards(AuthGuard('jwt'))
+  @Get('history')
+  async getHistory(@Req() req: any) {
+    return this.purchaseService.getUserPurchases(req.user.id);
+  }
+
+  // Admin endpoint
   @Get('admin/revenue')
   async getRevenueStats() {
     return this.purchaseService.getRevenueStats();
