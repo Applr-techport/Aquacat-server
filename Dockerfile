@@ -1,14 +1,28 @@
-FROM node:20-slim
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 COPY prisma ./prisma
 RUN npx prisma generate
 
-COPY dist ./dist
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+RUN npm run build
+
+FROM node:20-slim
+
+WORKDIR /app
+
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/prisma ./prisma
+RUN npx prisma generate
+
+COPY --from=builder /app/dist ./dist
 
 ENV NODE_ENV=production
 ENV PORT=3000
