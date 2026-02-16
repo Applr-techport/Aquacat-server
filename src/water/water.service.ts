@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AchievementService } from '../achievement/achievement.service';
 
 @Injectable()
 export class WaterService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private achievementService: AchievementService,
+  ) {}
 
   async logWater(userId: string, amount: number, drinkType: string = 'water') {
     const log = await this.prisma.waterLog.create({
@@ -28,7 +32,42 @@ export class WaterService {
       },
     });
 
+    // Check achievements (async, don't block response)
+    this.checkAchievements(userId, user.goalMl, drinkType).catch(() => {});
+
     return log;
+  }
+
+  private async checkAchievements(userId: string, goalMl: number, drinkType: string) {
+    const today = this.getKSTDate();
+    const summary = await this.prisma.dailySummary.findUnique({
+      where: { userId_date: { userId, date: today } },
+    });
+    const streak = (await this.getStreak(userId)).streak;
+
+    // Total volume
+    const totalAgg = await this.prisma.waterLog.aggregate({
+      where: { userId },
+      _sum: { amount: true },
+    });
+
+    // Distinct drink types
+    const drinkTypes = await this.prisma.waterLog.groupBy({
+      by: ['drinkType'],
+      where: { userId },
+    });
+
+    const now = new Date();
+    const kstHour = (now.getUTCHours() + 9) % 24;
+
+    await this.achievementService.checkAndUnlock(userId, {
+      streak,
+      totalMl: totalAgg._sum.amount || 0,
+      todayMl: summary?.totalMl || 0,
+      goalMl,
+      drinkTypes: drinkTypes.map(d => d.drinkType),
+      logHour: kstHour,
+    });
   }
 
   async deleteLog(userId: string, logId: string) {

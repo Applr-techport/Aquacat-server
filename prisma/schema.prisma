@@ -28,6 +28,7 @@ model User {
   waterLogs     WaterLog[]
   dailySummaries DailySummary[]
   purchases     Purchase[]
+  achievements  Achievement[]
 }
 
 model WaterLog {
@@ -57,6 +58,18 @@ model DailySummary {
 
   @@unique([userId, date])
   @@index([userId, date])
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // "streak_7", "streak_30", "total_100L", "first_perfect", "early_bird" etc
+  unlockedAt  DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
 }
 
 model HealthTip {
