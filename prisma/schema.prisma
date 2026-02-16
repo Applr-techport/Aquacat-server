@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  provider      String    // "google" | "apple"
+  displayName   String?
+  gender        String?
+  birthYear     Int?
+  weight        Float
+  wakeTime      String    @default("08:00")  // HH:mm
+  sleepTime     String    @default("24:00")
+  activityLevel String    @default("normal") // "low" | "normal" | "high"
+  goalMl        Int       @default(2000)
+  isPremium     Boolean   @default(false)
+  mealTimes     String    @default("08:30,13:00,19:30") // CSV
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  waterLogs     WaterLog[]
+  dailySummaries DailySummary[]
+}
+
+model WaterLog {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int      // ml
+  drinkType String   @default("water") // water, coffee, tea, juice, other
+  loggedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+}
+
+model DailySummary {
+  id           String   @id @default(cuid())
+  userId       String
+  date         String   // "2026-02-16"
+  totalMl      Int      @default(0)
+  goalMl       Int
+  achieved     Boolean  @default(false)
+  streak       Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model HealthTip {
+  id      String @id @default(cuid())
+  content String
+  active  Boolean @default(true)
+}

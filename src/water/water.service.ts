@@ -1,0 +1,208 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class WaterService {
+  constructor(private prisma: PrismaService) {}
+
+  async logWater(userId: string, amount: number, drinkType: string = 'water') {
+    const log = await this.prisma.waterLog.create({
+      data: { userId, amount, drinkType },
+    });
+
+    // Update daily summary
+    const today = this.getKSTDate();
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    await this.prisma.dailySummary.upsert({
+      where: { userId_date: { userId, date: today } },
+      create: {
+        userId,
+        date: today,
+        totalMl: amount,
+        goalMl: user!.goalMl,
+      },
+      update: {
+        totalMl: { increment: amount },
+      },
+    });
+
+    return log;
+  }
+
+  async deleteLog(userId: string, logId: string) {
+    const log = await this.prisma.waterLog.findFirst({
+      where: { id: logId, userId },
+    });
+    if (!log) return null;
+
+    await this.prisma.waterLog.delete({ where: { id: logId } });
+
+    // Update daily summary
+    const today = this.getKSTDate();
+    await this.prisma.dailySummary.update({
+      where: { userId_date: { userId, date: today } },
+      data: { totalMl: { decrement: log.amount } },
+    }).catch(() => {});
+
+    return log;
+  }
+
+  async getToday(userId: string) {
+    const today = this.getKSTDate();
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    const logs = await this.prisma.waterLog.findMany({
+      where: {
+        userId,
+        loggedAt: {
+          gte: this.getKSTStartOfDay(),
+          lt: this.getKSTEndOfDay(),
+        },
+      },
+      orderBy: { loggedAt: 'desc' },
+    });
+
+    const totalMl = logs.reduce((sum, l) => sum + l.amount, 0);
+    const progress = Math.round((totalMl / user.goalMl) * 100);
+
+    // Calculate gauge (with 30% drain)
+    const gauge = this.calculateGauge(user, totalMl);
+
+    // Determine cat state
+    const now = new Date();
+    const kstHour = (now.getUTCHours() + 9) % 24;
+    const sleepHour = parseInt(user.sleepTime.split(':')[0]);
+    const settlementHour = sleepHour - 2;
+    const isSettlementTime = kstHour >= settlementHour;
+
+    let catState: string;
+    if (isSettlementTime && progress >= 100) {
+      catState = 'perfect';
+    } else if (gauge >= 70) {
+      catState = 'happy';
+    } else if (gauge >= 40) {
+      catState = 'normal';
+    } else if (gauge >= 15) {
+      catState = 'thirsty';
+    } else {
+      catState = 'critical';
+    }
+
+    return {
+      logs,
+      totalMl,
+      goalMl: user.goalMl,
+      progress,
+      gauge,
+      catState,
+    };
+  }
+
+  async getCalendar(userId: string, month: string) {
+    // month format: "2026-02"
+    const summaries = await this.prisma.dailySummary.findMany({
+      where: {
+        userId,
+        date: { startsWith: month },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return summaries.map(s => ({
+      date: s.date,
+      totalMl: s.totalMl,
+      goalMl: s.goalMl,
+      achieved: s.totalMl >= s.goalMl,
+      percentage: Math.round((s.totalMl / s.goalMl) * 100),
+    }));
+  }
+
+  async getWeekly(userId: string) {
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() + 9 * 3600000 - i * 86400000);
+      days.push(d.toISOString().slice(0, 10));
+    }
+
+    const summaries = await this.prisma.dailySummary.findMany({
+      where: { userId, date: { in: days } },
+    });
+
+    const map = new Map(summaries.map(s => [s.date, s]));
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    return days.map(date => {
+      const s = map.get(date);
+      return {
+        date,
+        totalMl: s?.totalMl || 0,
+        goalMl: user.goalMl,
+        achieved: (s?.totalMl || 0) >= user.goalMl,
+      };
+    });
+  }
+
+  async getStreak(userId: string) {
+    const summaries = await this.prisma.dailySummary.findMany({
+      where: { userId },
+      orderBy: { date: 'desc' },
+      take: 365,
+    });
+
+    let streak = 0;
+    const today = this.getKSTDate();
+
+    for (const s of summaries) {
+      const expected = new Date(Date.now() + 9 * 3600000 - streak * 86400000)
+        .toISOString().slice(0, 10);
+      if (s.date === expected && s.totalMl >= s.goalMl) {
+        streak++;
+      } else if (s.date === today && s.totalMl < s.goalMl) {
+        // Today not yet achieved, skip
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    return { streak };
+  }
+
+  private calculateGauge(user: any, totalMl: number): number {
+    const now = new Date();
+    const kstHour = (now.getUTCHours() + 9) % 24;
+    const kstMin = now.getUTCMinutes();
+    const wakeHour = parseInt(user.wakeTime.split(':')[0]);
+    const wakeMin = parseInt(user.wakeTime.split(':')[1] || '0');
+    const sleepHour = parseInt(user.sleepTime.split(':')[0]);
+
+    const activeHours = sleepHour - wakeHour;
+    const elapsedHours = Math.max(0, (kstHour + kstMin / 60) - (wakeHour + wakeMin / 60));
+
+    // 30% drain over active hours
+    const drainTotal = user.goalMl * 0.3;
+    const drained = (drainTotal / activeHours) * Math.min(elapsedHours, activeHours);
+
+    const netMl = totalMl - drained;
+    const gauge = Math.max(0, Math.round((netMl / user.goalMl) * 100));
+    return Math.min(gauge, 100);
+  }
+
+  private getKSTDate(): string {
+    return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  }
+
+  private getKSTStartOfDay(): Date {
+    const kstDate = this.getKSTDate();
+    return new Date(`${kstDate}T00:00:00+09:00`);
+  }
+
+  private getKSTEndOfDay(): Date {
+    const kstDate = this.getKSTDate();
+    return new Date(`${kstDate}T23:59:59+09:00`);
+  }
+}
