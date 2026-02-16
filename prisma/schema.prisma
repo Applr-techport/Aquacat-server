@@ -26,6 +26,7 @@ model User {
 
   waterLogs     WaterLog[]
   dailySummaries DailySummary[]
+  purchases     Purchase[]
 }
 
 model WaterLog {
@@ -61,4 +62,21 @@ model HealthTip {
   id      String @id @default(cuid())
   content String
   active  Boolean @default(true)
+}
+
+model Purchase {
+  id            String   @id @default(cuid())
+  userId        String
+  productId     String   // "remove_ads"
+  platform      String   // "android" | "ios"
+  price         Int      // KRW
+  currency      String   @default("KRW")
+  transactionId String?  @unique
+  status        String   @default("completed") // "completed" | "refunded"
+  purchasedAt   DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([purchasedAt])
 }

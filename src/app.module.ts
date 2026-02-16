@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { WaterModule } from './water/water.module';
 import { HealthModule } from './health/health.module';
+import { PurchaseModule } from './purchase/purchase.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -19,6 +20,7 @@ import { AppController } from './app.controller';
     UserModule,
     WaterModule,
     HealthModule,
+    PurchaseModule,
   ],
   controllers: [AppController],
   providers: [
