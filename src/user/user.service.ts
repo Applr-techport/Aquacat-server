@@ -12,7 +12,6 @@ export class UserService {
   async updateProfile(userId: string, data: {
     displayName?: string;
     gender?: string;
-    birthYear?: number;
     weight?: number;
     wakeTime?: string;
     sleepTime?: string;

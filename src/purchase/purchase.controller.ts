@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards, Headers, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PurchaseService } from './purchase.service';
 
@@ -24,9 +24,13 @@ export class PurchaseController {
     return this.purchaseService.getUserPurchases(req.user.id);
   }
 
-  // Admin endpoint
+  // Admin endpoint - requires ADMIN_API_KEY
   @Get('admin/revenue')
-  async getRevenueStats() {
+  async getRevenueStats(@Headers('x-admin-key') adminKey: string) {
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected || adminKey !== expected) {
+      throw new UnauthorizedException('Invalid admin key');
+    }
     return this.purchaseService.getRevenueStats();
   }
 }

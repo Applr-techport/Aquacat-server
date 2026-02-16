@@ -7,7 +7,7 @@ import { JwtStrategy } from './jwt.strategy';
 @Module({
   imports: [
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'nyangnyang-water-secret',
+      secret: process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET required'); })(),
       signOptions: { expiresIn: '30d' },
     }),
   ],

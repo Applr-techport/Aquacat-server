@@ -21,6 +21,9 @@ export class AuthController {
 
   @Post('dev-login')
   async devLogin(@Body('email') email: string) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Dev login disabled in production');
+    }
     return this.authService.devLogin(email);
   }
 }

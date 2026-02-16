@@ -39,12 +39,17 @@ export class WaterService {
 
     await this.prisma.waterLog.delete({ where: { id: logId } });
 
-    // Update daily summary
-    const today = this.getKSTDate();
-    await this.prisma.dailySummary.update({
-      where: { userId_date: { userId, date: today } },
-      data: { totalMl: { decrement: log.amount } },
-    }).catch(() => {});
+    // Update daily summary using the log's actual date
+    const logDate = new Date(log.loggedAt.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    const summary = await this.prisma.dailySummary.findUnique({
+      where: { userId_date: { userId, date: logDate } },
+    });
+    if (summary) {
+      await this.prisma.dailySummary.update({
+        where: { userId_date: { userId, date: logDate } },
+        data: { totalMl: Math.max(0, summary.totalMl - log.amount) },
+      });
+    }
 
     return log;
   }
@@ -155,15 +160,22 @@ export class WaterService {
 
     let streak = 0;
     const today = this.getKSTDate();
+    let checkDate = today;
+    let skippedToday = false;
 
     for (const s of summaries) {
-      const expected = new Date(Date.now() + 9 * 3600000 - streak * 86400000)
-        .toISOString().slice(0, 10);
-      if (s.date === expected && s.totalMl >= s.goalMl) {
-        streak++;
-      } else if (s.date === today && s.totalMl < s.goalMl) {
-        // Today not yet achieved, skip
+      if (s.date === today && s.totalMl < s.goalMl && !skippedToday) {
+        // Today not yet achieved, start counting from yesterday
+        skippedToday = true;
+        checkDate = new Date(Date.now() + 9 * 3600000 - 86400000).toISOString().slice(0, 10);
         continue;
+      }
+
+      if (s.date === checkDate && s.totalMl >= s.goalMl) {
+        streak++;
+        checkDate = new Date(
+          new Date(checkDate + 'T00:00:00Z').getTime() - 86400000
+        ).toISOString().slice(0, 10);
       } else {
         break;
       }
