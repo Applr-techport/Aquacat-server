@@ -1,8 +1,10 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
+  private devLoginAttempts = new Map<string, { count: number; resetAt: number }>();
+
   constructor(private authService: AuthService) {}
 
   @Post('google')
@@ -22,7 +24,18 @@ export class AuthController {
   @Post('dev-login')
   async devLogin(@Body('email') email: string) {
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('Dev login disabled in production');
+      throw new HttpException('Dev login disabled in production', HttpStatus.FORBIDDEN);
+    }
+    // Rate limit: 10 attempts per minute per email
+    const now = Date.now();
+    const entry = this.devLoginAttempts.get(email);
+    if (entry && entry.resetAt > now && entry.count >= 10) {
+      throw new HttpException('Too many attempts', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    if (!entry || entry.resetAt <= now) {
+      this.devLoginAttempts.set(email, { count: 1, resetAt: now + 60000 });
+    } else {
+      entry.count++;
     }
     return this.authService.devLogin(email);
   }

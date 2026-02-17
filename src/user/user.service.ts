@@ -60,6 +60,16 @@ export class UserService {
     });
   }
 
+  async deleteAccount(userId: string) {
+    // Delete all related data then user
+    await this.prisma.achievement.deleteMany({ where: { userId } });
+    await this.prisma.purchase.deleteMany({ where: { userId } });
+    await this.prisma.waterLog.deleteMany({ where: { userId } });
+    await this.prisma.dailySummary.deleteMany({ where: { userId } });
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { deleted: true };
+  }
+
   async completeOnboarding(userId: string, data: {
     displayName: string;
     gender?: string;
