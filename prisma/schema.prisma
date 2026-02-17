@@ -13,7 +13,6 @@ model User {
   provider      String    // "google" | "apple"
   displayName   String?
   gender        String?
-  birthYear     Int?
   weight        Float
   wakeTime      String    @default("08:00")  // HH:mm
   sleepTime     String    @default("24:00")
@@ -49,8 +48,6 @@ model DailySummary {
   date         String   // "2026-02-16"
   totalMl      Int      @default(0)
   goalMl       Int
-  achieved     Boolean  @default(false)
-  streak       Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AchievementService } from '../achievement/achievement.service';
 
@@ -17,7 +17,7 @@ export class WaterService {
     // Update daily summary
     const today = this.getKSTDate();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
     await this.prisma.dailySummary.upsert({
       where: { userId_date: { userId, date: today } },
@@ -96,7 +96,7 @@ export class WaterService {
   async getToday(userId: string) {
     const today = this.getKSTDate();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
     const logs = await this.prisma.waterLog.findMany({
       where: {
@@ -177,7 +177,7 @@ export class WaterService {
 
     const map = new Map(summaries.map(s => [s.date, s]));
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
     return days.map(date => {
       const s = map.get(date);
