@@ -51,7 +51,7 @@ export class UserService {
       const weight = data.weight || user.weight;
       const activity = data.activityLevel || user.activityLevel;
       const age = data.ageGroup || user.ageGroup;
-      const gender = data.gender || user.gender;
+      const gender = data.gender || user.gender || undefined;
       goalMl = this.calculateGoalMl(weight, activity, age, gender);
     }
 
