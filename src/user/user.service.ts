@@ -9,7 +9,7 @@ export class UserService {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
-  private calculateGoalMl(weight: number, activityLevel: string, ageGroup: string): number {
+  private calculateGoalMl(weight: number, activityLevel: string, ageGroup: string, gender?: string): number {
     // Base multiplier by age group (ml per kg)
     const ageMultiplier: Record<string, number> = {
       '20s': 37, // 35~40
@@ -27,7 +27,10 @@ export class UserService {
     };
     const adjust = activityAdjust[activityLevel] || 0;
 
-    const multiplier = base + adjust;
+    // Gender adjustment (female ~10% less)
+    const genderAdjust = gender === 'female' ? -3 : 0;
+
+    const multiplier = base + adjust + genderAdjust;
     return Math.round((weight * multiplier) / 100) * 100;
   }
 
@@ -42,13 +45,14 @@ export class UserService {
     mealTimes?: string;
   }) {
     let goalMl: number | undefined;
-    if (data.weight || data.activityLevel || data.ageGroup) {
+    if (data.weight || data.activityLevel || data.ageGroup || data.gender) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) return null;
       const weight = data.weight || user.weight;
       const activity = data.activityLevel || user.activityLevel;
       const age = data.ageGroup || user.ageGroup;
-      goalMl = this.calculateGoalMl(weight, activity, age);
+      const gender = data.gender || user.gender;
+      goalMl = this.calculateGoalMl(weight, activity, age, gender);
     }
 
     return this.prisma.user.update({
@@ -58,6 +62,13 @@ export class UserService {
         ...(goalMl ? { goalMl } : {}),
       },
     });
+  }
+
+  async resetData(userId: string) {
+    await this.prisma.waterLog.deleteMany({ where: { userId } });
+    await this.prisma.dailySummary.deleteMany({ where: { userId } });
+    await this.prisma.achievement.deleteMany({ where: { userId } });
+    return { reset: true };
   }
 
   async deleteAccount(userId: string) {
@@ -81,7 +92,7 @@ export class UserService {
     mealTimes?: string;
   }) {
     const ageGroup = data.ageGroup || '30s';
-    const goalMl = this.calculateGoalMl(data.weight, data.activityLevel, ageGroup);
+    const goalMl = this.calculateGoalMl(data.weight, data.activityLevel, ageGroup, data.gender);
 
     return this.prisma.user.update({
       where: { id: userId },

@@ -22,6 +22,11 @@ export class UserController {
     return this.userService.completeOnboarding(req.user.id, body);
   }
 
+  @Post('reset-data')
+  async resetData(@Req() req) {
+    return this.userService.resetData(req.user.id);
+  }
+
   @Delete('account')
   async deleteAccount(@Req() req) {
     return this.userService.deleteAccount(req.user.id);
