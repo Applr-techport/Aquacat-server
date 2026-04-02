@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReceiptVerifyService } from './receipt-verify.service';
 
 @Injectable()
 export class PurchaseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private receiptVerify: ReceiptVerifyService,
+  ) {}
 
   async recordPurchase(userId: string, data: {
     productId: string;
@@ -11,7 +15,31 @@ export class PurchaseService {
     price: number;
     currency?: string;
     transactionId?: string;
+    receipt?: string;
   }) {
+    // Verify receipt if provided
+    if (data.receipt) {
+      const result = await this.receiptVerify.verify(data.platform, data.receipt, data.productId);
+      if (!result.valid) {
+        throw new BadRequestException('Invalid purchase receipt');
+      }
+      // Use verified transactionId
+      if (result.transactionId) {
+        data.transactionId = result.transactionId;
+      }
+    }
+
+    // Check for duplicate transactionId
+    if (data.transactionId) {
+      const existing = await this.prisma.purchase.findUnique({
+        where: { transactionId: data.transactionId },
+      });
+      if (existing) {
+        // Already recorded, just return success
+        return existing;
+      }
+    }
+
     // Record purchase
     const purchase = await this.prisma.purchase.create({
       data: {

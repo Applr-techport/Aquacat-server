@@ -14,6 +14,7 @@ export class PurchaseController {
     price: number;
     currency?: string;
     transactionId?: string;
+    receipt?: string;
   }) {
     return this.purchaseService.recordPurchase(req.user.id, body);
   }
