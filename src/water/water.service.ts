@@ -200,17 +200,16 @@ export class WaterService {
     let streak = 0;
     const today = this.getKSTDate();
     let checkDate = today;
-    let skippedToday = false;
 
     for (const s of summaries) {
-      if (s.date === today && s.totalMl < s.goalMl && !skippedToday) {
-        // Today not yet achieved, start counting from yesterday
-        skippedToday = true;
-        checkDate = new Date(Date.now() + 9 * 3600000 - 86400000).toISOString().slice(0, 10);
-        continue;
-      }
+      if (s.date !== checkDate) break;
 
-      if (s.date === checkDate && s.totalMl >= s.goalMl) {
+      // Today: any water logged counts, past days: goal must be achieved
+      const counts = s.date === today
+        ? s.totalMl > 0
+        : s.totalMl >= s.goalMl;
+
+      if (counts) {
         streak++;
         checkDate = new Date(
           new Date(checkDate + 'T00:00:00Z').getTime() - 86400000
