@@ -18,4 +18,7 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`🐱💧 NyangNyang Water API running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('❌ Failed to start application:', err);
+  process.exit(1);
+});
